@@ -1,0 +1,7 @@
+{
+    "host":"114.115.149.84",
+    "port":3306,
+    "user":"llc",
+    "password":"llc@patent1234",
+	"db":"ANA_DES_20171121"
+}
