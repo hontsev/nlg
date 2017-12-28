@@ -203,7 +203,6 @@ def get_key10(item):
 
 def fill_base_key(template, item):
     result =template
-
     result =result.replace('【优先权年】', get_key1(item))
     result =result.replace('【授权年】', get_key2(item))
     result =result.replace('【申请年】', get_key3(item))
@@ -283,7 +282,7 @@ def main_deal():
         # if len(q_template_list)<=0 or len(a_template_list)<=0:
             # continue
         # q_template_list=[{'content':'【优先权年】【授权年】【申请年】【来源国】【流向国】【领域】【子领域】【申请人】【发明人】【topN数目】'}]
-        q_template_list = [{'content': '在【优先权年】，申请年为【申请年】的，从【来源国】向【流向国】的，在【领域】领域的【子领域】子领域中的，由【申请人】申请，并且发明人为【发明人】的专利有哪些？'}]
+        # q_template_list = [{'content': '在【优先权年】，申请年为【申请年】的，从【来源国】向【流向国】的，在【领域】领域的【子领域】子领域中的，由【申请人】申请，并且发明人为【发明人】的专利有哪些？'}]
         for q_template in q_template_list:
             q_template=q_template['content']
             base_keyword_list=[{"type":qa_type}]
@@ -304,9 +303,11 @@ def main_deal():
                 print(question)
 
                 for a_template in a_template_list:
+                    a_template=a_template['content']
                     answer=fill_base_key(a_template, item)
                     answer=fill_compute_key(answer,item)
                     set_sql(item)
+                    print(answer)
 
 
 
@@ -320,9 +321,27 @@ def init():
     for line in f.readlines():
         code_dir[line.split('\t')[0]] = line.split('\t')[1].replace('\r','').replace('\n','')
 
+def update_templates():
+
+
+    qf=open("question_template.txt",mode='r',encoding='utf8')
+    question_templates=list()
+    for line in qf.readlines():
+        question_templates.append({ 'type' : line.split('\t')[0], 'content' : line.split('\t')[1].replace('\r','').replace('\n','')})
+    execute("TRUNCATE q_template")
+    for item in question_templates:
+        execute("INSERT INTO q_template(content,type) VALUES('%s','%s')" %(item['content'],item['type']))
+
+
+    af=open("answer_template.txt",mode='r',encoding='utf8')
+    answer_templates=list()
+    for line in af.readlines():
+        answer_templates.append({ 'type' : line.split('\t')[0], 'content' : line.split('\t')[1].replace('\r','').replace('\n','')})
+    execute("TRUNCATE a_template")
+    for item in answer_templates:
+        execute("INSERT INTO a_template(content,type) VALUES('%s','%s')" %(item['content'],item['type']))
 
 init()
+# update_templates()
 main_deal()
 db_conn.close()
-# link_database()
-# print(select("SELECT * FROM ana_des_20171121 LIMIT 10"))
