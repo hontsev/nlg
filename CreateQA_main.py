@@ -230,6 +230,8 @@ def order_by_year(data):
     for ditem in data:
         # print(ditem)
         thisyear = str(ditem['申请日'])[0:4]
+        if len(thisyear)<=0:
+            continue
         if thisyear not in years:
             years[thisyear] = 0
         years[thisyear] += 1
@@ -434,6 +436,8 @@ def get_key21(item,data):
     lasttime=datetime.datetime.strptime('0001/1/1','%Y/%m/%d')
     lastname=''
     for ditem in data:
+        if len(ditem['申请日'])<=0:
+            continue
         ttime=datetime.datetime.strptime(ditem['申请日'],'%Y/%m/%d')
         if ttime>lasttime:
             lasttime=ttime
@@ -444,6 +448,8 @@ def get_key22(item,data):
     earlytime=datetime.datetime.strptime('9999/1/1','%Y/%m/%d')
     earlyname=''
     for ditem in data:
+        if len(ditem['申请日'])<=0:
+            continue
         ttime=datetime.datetime.strptime(ditem['申请日'],'%Y/%m/%d')
         if ttime<earlytime:
             earlytime=ttime
@@ -517,7 +523,7 @@ def fill_compute_key(template, item, data):
     result = result.replace('【有效专利量】', get_key13(item, data))
     result = result.replace('【三方专利量】', get_key14(item, data))
     result = result.replace('【专利申请量最多的年份】', get_key15(item, data))
-    result = result.replace('【专利申请量增长最多的年份】', get_key16(item, data))
+    result = result.replace('【专利申请量增长最快的年份】', get_key16(item, data))
     result = result.replace('【专利申请量topN的来源国】', get_key17(item, data))
     result = result.replace('【专利申请量topN的申请人】', get_key18(item, data))
     result = result.replace('【专利族高被引topN的申请人】', get_key19(item, data))
@@ -570,12 +576,12 @@ def get_distinct(data):
 
 def main_deal():
     qa_type_min=1
-    qa_type_max=2 # 44
+    qa_type_max=44 # 44
 
     year_min=2014
     year_max=2017
     top_min=1
-    top_max=3
+    top_max=5
     # base_keyword={"【优先权年】"=}
 
     # 获取来源国字段的可能的取值
@@ -585,25 +591,25 @@ def main_deal():
         for country in item['申请人国别代码'].split(','):
             if len(country.strip()) > 0:
                 from_country.append(country.strip())
-    from_country = list(set(from_country))[0:5]
+    from_country = list(set(from_country))#[0:5]
 
     # 获取流向国的可能取值，这里是取得其英文字母编号
     to_country_tmp = select("SELECT distinct SUBSTRING(公开（公告）号,1,2) as 流向国国别代码 FROM %s" % db_patent)
     to_country = list()
     for item in to_country_tmp: to_country.append(item['流向国国别代码'])
-    to_country = list(set(to_country))[0:5]
+    to_country = list(set(to_country))#[0:5]
 
     # 领域的可能取值
     field=list()
     field_tmp = select("SELECT distinct 领域 FROM %s" % db_patent)
     for item in field_tmp:field.append(item["领域"])
-    field=field[0:5]
+    field=field#[0:5]
 
     # 子领域的可能取值
     sub_field = list()
     sub_field_tmp = select("SELECT distinct 子领域 FROM %s" % db_patent)
     for item in sub_field_tmp: sub_field.append(item["子领域"])
-    sub_field=sub_field[0:5]
+    sub_field=sub_field#[0:5]
 
     # 申请人的可能取值
     applicant_tmp = select("SELECT distinct 申请人 FROM %s" % db_patent)
@@ -612,7 +618,7 @@ def main_deal():
         for name in item['申请人'].split(';'):
             if len(name.strip()) > 0:
                 applicant.append(name.strip())
-    applicant = list(set(applicant))[0:2]
+    applicant = list(set(applicant))[0:100]
 
     # 发明人的可能取值
     inventor_tmp = select("SELECT distinct 发明人 FROM %s" % db_patent)
@@ -621,9 +627,12 @@ def main_deal():
         for name in item['发明人'].split(';'):
             if len(name.strip()) > 0:
                 inventor.append(name.strip())
-    inventor = list(set(inventor))[0:2]
+    inventor = list(set(inventor))[0:100]
+
+    result=list()
+
     
-    for qa_type in range(qa_type_min, qa_type_max):
+    for qa_type in range(qa_type_min, qa_type_max+1):
         q_template_list= select("SELECT content FROM q_template WHERE `type`='%s'" % qa_type)
         a_template_list = select("SELECT content FROM a_template WHERE `type`='%s'" % qa_type)
         # if len(q_template_list)<=0 or len(a_template_list)<=0:
@@ -635,22 +644,22 @@ def main_deal():
             base_keyword_list=[{"type":qa_type}]
             # sql="SELECT * FROM ana_des_20171121 "
             # is_first_condition=True;
-            if '【优先权年】' in q_template:  base_keyword_list=add_item(base_keyword_list,'优先权年',range(year_min,year_max))
-            if '【授权年】' in q_template:  base_keyword_list=add_item(base_keyword_list,'授权年',range(year_min,year_max))
-            if '【申请年】' in q_template:  base_keyword_list=add_item(base_keyword_list, '申请年', range(year_min,year_max))
+            if '【优先权年】' in q_template:  base_keyword_list=add_item(base_keyword_list,'优先权年',range(year_min,year_max+1))
+            if '【授权年】' in q_template:  base_keyword_list=add_item(base_keyword_list,'授权年',range(year_min,year_max+1))
+            if '【申请年】' in q_template:  base_keyword_list=add_item(base_keyword_list, '申请年', range(year_min,year_max+1))
             if '【来源国】' in q_template:  base_keyword_list=add_item(base_keyword_list, '来源国', from_country)
             if '【流向国】' in q_template:  base_keyword_list=add_item(base_keyword_list, '流向国', to_country)
             if '【领域】' in q_template:  base_keyword_list=add_item(base_keyword_list, '领域', field)
             if '【子领域】' in q_template:  base_keyword_list=add_item(base_keyword_list, '子领域', sub_field)
             if '【申请人】' in q_template:  base_keyword_list=add_item(base_keyword_list, '申请人', applicant)
             if '【发明人】' in q_template:  base_keyword_list=add_item(base_keyword_list, '发明人', inventor)
-            if '【topN数目】' in q_template:  base_keyword_list=add_item(base_keyword_list, 'topN数目', range(top_min,top_max))
-            # print(base_keyword_list.__len__())
+            if '【topN数目】' in q_template:  base_keyword_list=add_item(base_keyword_list, 'topN数目', range(top_min,top_max+1))
+            print(base_keyword_list.__len__())
             for item in base_keyword_list:
                 # 填充问句
                 question=fill_base_key(q_template, item)
 
-                print(question)
+                # print(question)
 
                 for a_template in a_template_list:
                     a_template=a_template['content']
@@ -672,9 +681,18 @@ def main_deal():
                     # 填充答句的需计算部分
                     answer = fill_compute_key(answer, item,data_result)
 
-                    print(answer)
+                    result.append((question,answer))
+                    # print(answer)
                 # break
             #break
+
+    output(result)
+
+def output(data):
+    f=open('output.txt',mode='w',encoding='utf-8')
+    for item in data:
+        f.write(item[0]+"\t"+item[1]+"\r\n")
+    f.close()
 
 def init():
     # 连接数据库
