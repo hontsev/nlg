@@ -7,6 +7,7 @@
 
 import pymysql
 import json
+import datetime
 
 db_config_file = "db_config"
 db_conn = object()
@@ -134,7 +135,7 @@ def set_sql(item):
             sql += " AND "
         sql += "(`发明人`='%s' or `发明人` REGEXP '^%s[;]+' or `发明人` REGEXP '[;[:space:]]+%s$' or `发明人` REGEXP '[;[:space:]]+%s[;]+')" % \
                (item['发明人'], item['发明人'], item['发明人'], item['发明人'])
-    print(sql)
+    # print(sql)
     return sql
 
 def get_key1(item):
@@ -201,6 +202,299 @@ def get_key10(item):
     else:
         return ''
 
+def get_key11(item,data):
+    return str(len(data))
+
+def get_key12(item,data):
+    num=0
+    for ditem in data:
+        if len(ditem['公开（公告）日'])>0:num+=1
+    return str(num)
+
+def get_key13(item,data):
+    num = 0
+    for ditem in data:
+        if ditem['专利有效性']=='有效' :num+=1
+    return str(num)
+
+def get_key14(item,data):
+    num = 0
+    for ditem in data:
+        country=ditem['同族国家']
+        if 'CN' in country and 'US' in country and 'JP' in country:
+            num+=1
+    return str(num)
+
+def order_by_year(data):
+    years = {}
+    for ditem in data:
+        # print(ditem)
+        thisyear = str(ditem['申请日'])[0:4]
+        if thisyear not in years:
+            years[thisyear] = 0
+        years[thisyear] += 1
+    result=sorted(years.items(),key=lambda item:item[1],reverse=True)
+    return result
+
+def order_by_country(data):
+    country = {}
+    for ditem in data:
+        tcountry = ditem['申请人国别代码'].split(', ')
+        for tc in tcountry:
+            if tc not in country:
+                country[tc] = 0
+            country[tc] += 1
+    # country.sort()
+    result = sorted(country.items(), key=lambda item: item[1], reverse=True)
+    return result
+
+def order_by_othercountry(data,country):
+    countries = {}
+    for ditem in data:
+        tcountry = ditem['申请人国别代码'].split(', ')
+        for tc in tcountry:
+            if (tc == country) or (country not in tcountry):
+                continue
+            if tc not in countries:
+                countries[tc] = 0
+            countries[tc] += 1
+    result = sorted(countries.items(), key=lambda item: item[1], reverse=True)
+    return result
+
+def order_by_person(data):
+    persons = {}
+    for ditem in data:
+        tpersons = ditem['申请人'].split('; ')
+        for tp in tpersons:
+            if tp not in persons:
+                persons[tp] = 0
+            persons[tp] += 1
+    result = sorted(persons.items(), key=lambda item: item[1], reverse=True)
+    return result
+
+def order_by_otherperson(data,person):
+    persons = {}
+    for ditem in data:
+        tpersons = ditem['申请人'].split('; ')
+        for tp in tpersons:
+            if (tp == person) or (person not in tpersons):
+                continue
+            if tp not in persons:
+                persons[tp] = 0
+            persons[tp] += 1
+    result = sorted(persons.items(), key=lambda item: item[1], reverse=True)
+    return result
+
+def order_by_gperson(data):
+    persons = {}
+    for ditem in data:
+        tpersons = ditem['申请人'].split('; ')
+        for tp in tpersons:
+            if tp not in persons:
+                persons[tp] = 0
+            persons[tp] += int(ditem['家族被引证次数'])
+    result = sorted(persons.items(), key=lambda item: item[1], reverse=True)
+    return result
+
+def order_by_subfield(data):
+    subfields={}
+    for ditem in data:
+        subfield = str(ditem['子领域'])
+        if subfield not in subfields:
+            subfields[subfield] = 0
+        subfields[subfield] += 1
+    result=sorted(subfields.items(),key=lambda item:item[1],reverse=True)
+    return result
+
+def order_by_inventor(data):
+    persons = {}
+    for ditem in data:
+        tpersons = ditem['发明人'].split('; ')
+        for tp in tpersons:
+            if tp not in persons:
+                persons[tp] = 0
+            persons[tp] += 1
+    result = sorted(persons.items(), key=lambda item: item[1], reverse=True)
+    return result
+
+def order_by_otherinventor(data,inventor):
+    persons = {}
+    for ditem in data:
+        tpersons = ditem['发明人'].split('; ')
+        for tp in tpersons:
+            if (tp == inventor) or (inventor not in tpersons):
+                continue
+            if tp not in persons:
+                persons[tp] = 0
+            persons[tp] += 1
+    result = sorted(persons.items(), key=lambda item: item[1], reverse=True)
+    return result
+
+
+def order_by_person_type(data):
+    ptypes = {}
+    for ditem in data:
+        ttype = ditem['申请人类型']
+        if len(ttype)<=0:
+            continue
+        if ttype not in ptypes:
+            ptypes[ttype] = 0
+        ptypes[ttype] += 1
+    result = sorted(ptypes.items(), key=lambda item: item[1], reverse=True)
+    return result
+
+
+def get_key15(item,data):
+    years=order_by_year(data)
+    if len(years)<=0:
+        return ''
+    return years[0][0]
+
+def get_key16(item,data):
+    tmpyears=order_by_year(data)
+    years={}
+    for y in tmpyears:
+        years[y[0]]=y[1]
+    maxyear=0
+    maxdata=0
+    for year in years:
+        if str(int(year)-1) in years:
+            # 有前一年的数据才能算
+            tdata=years[year]-years[str(int(year)-1)]
+            if tdata > maxdata:
+                maxdata=tdata
+                maxyear=year
+    return str(maxyear)
+
+def get_key17(item,data):
+    if 'topN数目' in item:
+        topn=int(item['topN数目'])
+        countries=order_by_country(data)
+        result=""
+        topn=min(topn,len(countries))
+        for i in range(0,topn):
+            if i>0:
+                if i==topn-1:
+                    result+="和"
+                else:
+                    result+="、"
+            result+=str(countries[i][0])
+        return result
+    else :
+        return ''
+
+def get_key18(item,data):
+    if 'topN数目' in item:
+        topn=int(item['topN数目'])
+        persons=order_by_person(data)
+        result=""
+        topn=min(topn,len(persons))
+        for i in range(0,topn):
+            if i>0:
+                result+="、"
+            result+=str(persons[i][0])
+        return result
+    else :
+        return ''
+
+def get_key19(item,data):
+    if 'topN数目' in item:
+        topn=int(item['topN数目'])
+        persons=order_by_gperson(data)
+        result=""
+        print(persons)
+        topn=min(topn,len(persons))
+        for i in range(0,topn):
+            if i>0:
+                result+="、"
+            result+=str(persons[i][0])
+        return result
+    else :
+        return ''
+
+def get_key20(item,data):
+    if 'topN数目' in item:
+        topn=int(item['topN数目'])
+        names=[]
+        for ditem in data:
+            names.append((ditem['标题'],ditem['家族被引证次数']))
+        names=sorted(names,key=lambda item:item[1],reverse=True)
+        topn=min(topn,len(names))
+        result=''
+        print(names)
+        for i in range(0,topn):
+            if i>0:
+                result+="、"
+            result+=str(names[i][0])
+        return result
+    else :
+        return ''
+
+def get_key21(item,data):
+    lasttime=datetime.datetime.strptime('0001/1/1','%Y/%m/%d')
+    lastname=''
+    for ditem in data:
+        ttime=datetime.datetime.strptime(ditem['申请日'],'%Y/%m/%d')
+        if ttime>lasttime:
+            lasttime=ttime
+            lastname=ditem['标题']
+    return lastname
+
+def get_key22(item,data):
+    earlytime=datetime.datetime.strptime('9999/1/1','%Y/%m/%d')
+    earlyname=''
+    for ditem in data:
+        ttime=datetime.datetime.strptime(ditem['申请日'],'%Y/%m/%d')
+        if ttime<earlytime:
+            earlytime=ttime
+            earlyname=ditem['标题']
+    return earlyname
+
+def get_key23(item,data):
+    return ''
+
+def get_key24(item,data):
+    subfields=order_by_subfield(data)
+    if len(subfields)<=0:
+        return ''
+    return subfields[0][0]
+
+def get_key25(item,data):
+    if '申请人' in item:
+        person=item['申请人']
+        persons=order_by_otherperson(data,person)
+        if len(persons)<=0:
+            return ''
+        return persons[0][0]
+    else:
+        return ''
+
+def get_key26(item,data):
+    if '发明人' in item:
+        person=item['发明人']
+        persons=order_by_inventor(data,person)
+        if len(persons)<=0:
+            return ''
+        return persons[0][0]
+    else:
+        return ''
+
+def get_key27(item,data):
+    person_types=order_by_person_type(data)
+    if len(person_types)<=0:
+        return ''
+    return person_types[0][0]
+
+def get_key28(item,data):
+    if '来源国' in item:
+        country=item['来源国']
+        countries=order_by_othercountry(data,country)
+        if len(countries)<=0:
+            return ''
+        return countries[0][0]
+    else:
+        return ''
+
 def fill_base_key(template, item):
     result =template
     result =result.replace('【优先权年】', get_key1(item))
@@ -216,18 +510,71 @@ def fill_base_key(template, item):
 
     return result
 
-def fill_compute_key(template, item):
+def fill_compute_key(template, item, data):
     result = template
-
+    result = result.replace('【专利申请量】', get_key11(item,data))
+    result = result.replace('【专利授权量】', get_key12(item, data))
+    result = result.replace('【有效专利量】', get_key13(item, data))
+    result = result.replace('【三方专利量】', get_key14(item, data))
+    result = result.replace('【专利申请量最多的年份】', get_key15(item, data))
+    result = result.replace('【专利申请量增长最多的年份】', get_key16(item, data))
+    result = result.replace('【专利申请量topN的来源国】', get_key17(item, data))
+    result = result.replace('【专利申请量topN的申请人】', get_key18(item, data))
+    result = result.replace('【专利族高被引topN的申请人】', get_key19(item, data))
+    result = result.replace('【专利族高被引topN的专利名称】', get_key20(item, data))
+    result = result.replace('【最新申请的专利名称】', get_key21(item, data))
+    result = result.replace('【最早申请的专利名称】', get_key22(item, data))
+    result = result.replace('【专利申请趋势】', get_key23(item, data))
+    result = result.replace('【主要研究方向】', get_key24(item, data))
+    result = result.replace('【与申请人合作最多的申请人】', get_key25(item, data))
+    result = result.replace('【与发明人合作最多的发明人】', get_key26(item, data))
+    result = result.replace('【最多申请人类型】', get_key27(item, data))
+    result = result.replace('【与来源国合作最多的来源国】', get_key28(item, data))
+    # item['topN数目']=3
+    # item['申请人']='山东玉皇化工有限公司'
+    # item['发明人'] = '刘家伟'
+    # item['来源国'] = '美国'
+    # print(get_key28(item,data))
+    # print(order_by_country(data))
     return result
+
+# 按专利的去重规则，过滤重复的专利项
+def get_distinct(data):
+    result=dict()
+    for item in data:
+        code1 = item['公开（公告）号'][0:-1]
+        code2 = item['公开（公告）号'][-1:]
+        # 最后一位是数字，就取倒数第二位作为标识位
+        if code2.isdigit():
+            code1 = item['公开（公告）号'][0:-2]
+            code2 = item['公开（公告）号'][-2:-1]
+            # print(code1)
+            # print(code2)
+            # print(item['公开（公告）号'])
+        if item['专利类型'][0:2]=='发明':
+            if code1 in result:
+                if code2=='B' or code2=='C':
+                    # 用B或C类型来替换原有类型
+                    result[code1]={code2:item}
+                    break
+            else:
+                # 初始化
+                result[code1]={code2:item}
+        else:
+            result[code1] = {code2: item}
+    # print(len(data))
+    resultlist=list()
+    for item in result.values():
+        resultlist.append((item.popitem())[1])
+    return resultlist
 
 def main_deal():
     qa_type_min=1
     qa_type_max=2 # 44
 
-    year_min=2016
+    year_min=2014
     year_max=2017
-    top_min=3
+    top_min=1
     top_max=3
     # base_keyword={"【优先权年】"=}
 
@@ -238,25 +585,25 @@ def main_deal():
         for country in item['申请人国别代码'].split(','):
             if len(country.strip()) > 0:
                 from_country.append(country.strip())
-    from_country = list(set(from_country))[0:2]
+    from_country = list(set(from_country))[0:5]
 
     # 获取流向国的可能取值，这里是取得其英文字母编号
     to_country_tmp = select("SELECT distinct SUBSTRING(公开（公告）号,1,2) as 流向国国别代码 FROM %s" % db_patent)
     to_country = list()
     for item in to_country_tmp: to_country.append(item['流向国国别代码'])
-    to_country = list(set(to_country))[0:2]
+    to_country = list(set(to_country))[0:5]
 
     # 领域的可能取值
     field=list()
     field_tmp = select("SELECT distinct 领域 FROM %s" % db_patent)
     for item in field_tmp:field.append(item["领域"])
-    field=field[0:2]
+    field=field[0:5]
 
     # 子领域的可能取值
     sub_field = list()
     sub_field_tmp = select("SELECT distinct 子领域 FROM %s" % db_patent)
     for item in sub_field_tmp: sub_field.append(item["子领域"])
-    sub_field=sub_field[0:2]
+    sub_field=sub_field[0:5]
 
     # 申请人的可能取值
     applicant_tmp = select("SELECT distinct 申请人 FROM %s" % db_patent)
@@ -298,18 +645,36 @@ def main_deal():
             if '【申请人】' in q_template:  base_keyword_list=add_item(base_keyword_list, '申请人', applicant)
             if '【发明人】' in q_template:  base_keyword_list=add_item(base_keyword_list, '发明人', inventor)
             if '【topN数目】' in q_template:  base_keyword_list=add_item(base_keyword_list, 'topN数目', range(top_min,top_max))
+            # print(base_keyword_list.__len__())
             for item in base_keyword_list:
+                # 填充问句
                 question=fill_base_key(q_template, item)
+
                 print(question)
 
                 for a_template in a_template_list:
                     a_template=a_template['content']
+
+                    # 部分填充答句
                     answer=fill_base_key(a_template, item)
-                    answer=fill_compute_key(answer,item)
-                    set_sql(item)
+
+                    # 构建查询语句
+                    sql=set_sql(item)
+                    # sql="SELECT * FROM ana_des_20171121 WHERE `领域`='机器学习' limit 100"
+
+                    # 从数据库得到计算所需数据
+                    sqldata=select(sql)
+
+                    # 按申请码去重
+                    data_result=get_distinct( sqldata )
+                    # break
+
+                    # 填充答句的需计算部分
+                    answer = fill_compute_key(answer, item,data_result)
+
                     print(answer)
-
-
+                # break
+            #break
 
 def init():
     # 连接数据库
