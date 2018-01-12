@@ -66,6 +66,10 @@ def add_item(item_list,name,name_list):
     # print(item_list)
     return tmp_list
 
+def safe_sql(data):
+    # 单引号转码
+    return data.replace('\'','\'\'')
+
 def set_sql(item):
     sql="SELECT * FROM %s" % db_patent
     is_first_condition = True
@@ -126,7 +130,7 @@ def set_sql(item):
         else:
             sql += " AND "
         sql += "(`申请人`='%s' or `申请人` REGEXP '^%s[;]+' or `申请人` REGEXP '[;[:space:]]+%s$' or `申请人` REGEXP '[;[:space:]]+%s[;]+')" % \
-               (item['申请人'],item['申请人'],item['申请人'],item['申请人'])
+               (safe_sql(item['申请人']),safe_sql(item['申请人']),safe_sql(item['申请人']),safe_sql(item['申请人']))
     if '发明人' in item:
         if is_first_condition:
             is_first_condition = False
@@ -134,7 +138,7 @@ def set_sql(item):
         else:
             sql += " AND "
         sql += "(`发明人`='%s' or `发明人` REGEXP '^%s[;]+' or `发明人` REGEXP '[;[:space:]]+%s$' or `发明人` REGEXP '[;[:space:]]+%s[;]+')" % \
-               (item['发明人'], item['发明人'], item['发明人'], item['发明人'])
+               (safe_sql(item['发明人']), safe_sql(item['发明人']), safe_sql(item['发明人']), safe_sql(item['发明人']))
     # print(sql)
     return sql
 
@@ -629,10 +633,11 @@ def main_deal():
                 inventor.append(name.strip())
     inventor = list(set(inventor))[0:100]
 
-    result=list()
 
-    
+
+    num=0
     for qa_type in range(qa_type_min, qa_type_max+1):
+        result = list()
         q_template_list= select("SELECT content FROM q_template WHERE `type`='%s'" % qa_type)
         a_template_list = select("SELECT content FROM a_template WHERE `type`='%s'" % qa_type)
         # if len(q_template_list)<=0 or len(a_template_list)<=0:
@@ -654,11 +659,15 @@ def main_deal():
             if '【申请人】' in q_template:  base_keyword_list=add_item(base_keyword_list, '申请人', applicant)
             if '【发明人】' in q_template:  base_keyword_list=add_item(base_keyword_list, '发明人', inventor)
             if '【topN数目】' in q_template:  base_keyword_list=add_item(base_keyword_list, 'topN数目', range(top_min,top_max+1))
-            print(base_keyword_list.__len__())
+            # print(base_keyword_list.__len__())
+            # num+=len(base_keyword_list)*len(a_template_list)
+            # print(num)
+            # continue
+
             for item in base_keyword_list:
                 # 填充问句
                 question=fill_base_key(q_template, item)
-
+                print(question)
                 # print(question)
 
                 for a_template in a_template_list:
@@ -686,13 +695,20 @@ def main_deal():
                 # break
             #break
 
-    output(result)
+        output_db(result,qa_type)
 
-def output(data):
-    f=open('output.txt',mode='w',encoding='utf-8')
+def output(data,typename):
+
+    f=open('output_'+typename+'.txt',mode='w',encoding='utf-8')
     for item in data:
         f.write(item[0]+"\t"+item[1]+"\r\n")
     f.close()
+
+def output_db(data,typename):
+    typename = str(typename)
+    print(typename + ',' + str(len(data)))
+    for item in data:
+        execute("INSERT INTO ana_des_result_20171123(id,question,answer,author) VALUES('%s','%s','%s','%s')" % typename,safe_sql(item[0]),safe_sql(item[1]),'张尧')
 
 def init():
     # 连接数据库
