@@ -51,8 +51,6 @@ def execute(sql):
         pass
         # db_conn.close()
 
-def insert_pair(id,question,answer,author=''):
-    execute("INSERT INTO ana_des_result_20171123(id,question,answer,author) VALUES(%s,%s,%s,%s)" % id,question,answer,author)
 
 def add_item(item_list,name,name_list):
     tmp_list = list()
@@ -691,14 +689,16 @@ def main_deal():
                     answer = fill_compute_key(answer, item,data_result)
 
                     result.append((question,answer))
+
+                    execute("INSERT INTO ana_des_result_20171123(id,question,answer,author) VALUES('%s','%s','%s','%s')" % (qa_type, safe_sql(question), safe_sql(answer), '张尧'))
                     # print(answer)
                 # break
             #break
 
-        output_db(result,qa_type)
+        output(result,qa_type)
 
 def output(data,typename):
-
+    typename = str(typename)
     f=open('output_'+typename+'.txt',mode='w',encoding='utf-8')
     for item in data:
         f.write(item[0]+"\t"+item[1]+"\r\n")
@@ -708,7 +708,7 @@ def output_db(data,typename):
     typename = str(typename)
     print(typename + ',' + str(len(data)))
     for item in data:
-        execute("INSERT INTO ana_des_result_20171123(id,question,answer,author) VALUES('%s','%s','%s','%s')" % typename,safe_sql(item[0]),safe_sql(item[1]),'张尧')
+        execute("INSERT INTO ana_des_result_20171123(id,question,answer,author) VALUES('%s','%s','%s','%s')" %(typename,safe_sql(item[0]),safe_sql(item[1]),'张尧'))
 
 def init():
     # 连接数据库
