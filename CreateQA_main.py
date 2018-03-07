@@ -12,7 +12,12 @@ import datetime
 db_config_file = "db_config"
 db_conn = object()
 
-db_patent='ana_des_20171121'
+#db_patent='ana_des_20171121'
+
+db_patent='ana_des_ai'
+db_output='ana_des_result_20171123'
+db_template_q='q_template'
+db_template_a='a_template'
 
 code_dir = dict()
 
@@ -85,7 +90,7 @@ def set_sql(item):
             sql += " WHERE "
         else:
             sql += " AND "
-        sql += "(`专利类型`='发明授权'or'实用新型'or'外观设计') and SUBSTR(`公开（公告）日`,1,4)='%s'" % item['授权年']
+        sql += "(`专利类型`='发明授权'or`专利类型`='实用新型'or`专利类型`='外观设计') and SUBSTR(`公开（公告）日`,1,4)='%s'" % item['授权年']
     if '申请年' in item:
         if is_first_condition:
             is_first_condition = False
@@ -406,7 +411,7 @@ def get_key19(item,data):
         topn=int(item['topN数目'])
         persons=order_by_gperson(data)
         result=""
-        print(persons)
+        # print(persons)
         topn=min(topn,len(persons))
         for i in range(0,topn):
             if i>0:
@@ -425,7 +430,7 @@ def get_key20(item,data):
         names=sorted(names,key=lambda item:item[1],reverse=True)
         topn=min(topn,len(names))
         result=''
-        print(names)
+        # print(names)
         for i in range(0,topn):
             if i>0:
                 result+="、"
@@ -480,7 +485,7 @@ def get_key25(item,data):
 def get_key26(item,data):
     if '发明人' in item:
         person=item['发明人']
-        persons=order_by_inventor(data,person)
+        persons=order_by_otherinventor(data,person)
         if len(persons)<=0:
             return ''
         return persons[0][0]
@@ -577,11 +582,18 @@ def get_distinct(data):
     return resultlist
 
 def main_deal():
+
+    print("开始获取可能的取值…")
+
+    # 问答种类取值
     qa_type_min=1
     qa_type_max=44 # 44
 
-    year_min=2014
+    # 年份取值
+    year_min=2000
     year_max=2017
+
+    # topN取值
     top_min=1
     top_max=5
     # base_keyword={"【优先权年】"=}
@@ -590,6 +602,8 @@ def main_deal():
     from_country_tmp = select("SELECT distinct 申请人国别代码 FROM %s" % db_patent)
     from_country = list()
     for item in from_country_tmp:
+        # print(item['申请人国别代码'])
+        if item['申请人国别代码']==None:continue
         for country in item['申请人国别代码'].split(','):
             if len(country.strip()) > 0:
                 from_country.append(country.strip())
@@ -608,45 +622,84 @@ def main_deal():
     field=field#[0:5]
 
     # 子领域的可能取值
-    sub_field = list()
     sub_field_tmp = select("SELECT distinct 子领域 FROM %s" % db_patent)
-    for item in sub_field_tmp: sub_field.append(item["子领域"])
+    # for item in sub_field_tmp: sub_field.append(item["子领域"])
+    sub_field = list()
+    for item in sub_field_tmp:
+        if item['子领域'] == None: continue
+        for name in item['子领域'].split(';'):
+            if len(name.strip()) > 0:
+                sub_field.append(name.strip())
     sub_field=sub_field#[0:5]
 
     # 申请人的可能取值
     applicant_tmp = select("SELECT distinct 申请人 FROM %s" % db_patent)
     applicant = list()
     for item in applicant_tmp:
+        if item['申请人'] == None: continue
         for name in item['申请人'].split(';'):
             if len(name.strip()) > 0:
                 applicant.append(name.strip())
-    applicant = list(set(applicant))[0:100]
+    applicant = list(set(applicant))#[0:100]
 
     # 发明人的可能取值
     inventor_tmp = select("SELECT distinct 发明人 FROM %s" % db_patent)
     inventor = list()
     for item in inventor_tmp:
+        if item['发明人'] == None: continue
         for name in item['发明人'].split(';'):
             if len(name.strip()) > 0:
                 inventor.append(name.strip())
-    inventor = list(set(inventor))[0:100]
+    inventor = list(set(inventor))#[0:100]
 
 
+    # 输出当前配置
+    print("发明信息数据库 %s 数据条数 %s" % (db_patent,select("SELECT count(*) AS 'count' FROM %s" % db_patent)[0]['count']))
+    print("问答类型取值为 %s - %s" % (qa_type_min,qa_type_max))
+    print("时间取值为 %s - %s" % (year_min, year_max))
+    print("tonN个数取值为 %s - %s" % (top_min, top_max))
+    print("来源国个数 %s" % len(from_country))
+    print("流向国个数 %s" % len(to_country))
+    print("领域个数 %s" % len(field))
+    print("子领域个数 %s" % len(sub_field))
+    print("申请人个数 %s" % len(applicant))
+    print("发明人个数 %s" % len(inventor))
+
+    # return
 
     num=0
     for qa_type in range(qa_type_min, qa_type_max+1):
+
         result = list()
-        q_template_list= select("SELECT content FROM q_template WHERE `type`='%s'" % qa_type)
-        a_template_list = select("SELECT content FROM a_template WHERE `type`='%s'" % qa_type)
+        q_template_list= get_question_templates(qa_type)
+        a_template_list = get_answer_templates(qa_type)
         # if len(q_template_list)<=0 or len(a_template_list)<=0:
             # continue
         # q_template_list=[{'content':'【优先权年】【授权年】【申请年】【来源国】【流向国】【领域】【子领域】【申请人】【发明人】【topN数目】'}]
         # q_template_list = [{'content': '在【优先权年】，申请年为【申请年】的，从【来源国】向【流向国】的，在【领域】领域的【子领域】子领域中的，由【申请人】申请，并且发明人为【发明人】的专利有哪些？'}]
+        print("类型%s有%s个问题模板和%s个答案模板" % (qa_type,len(q_template_list),len(a_template_list)))
         for q_template in q_template_list:
             q_template=q_template['content']
             base_keyword_list=[{"type":qa_type}]
             # sql="SELECT * FROM ana_des_20171121 "
             # is_first_condition=True;
+
+            item_num=1
+            if '【优先权年】' in q_template: item_num *= len(range(year_min,year_max+1))
+            if '【授权年】' in q_template: item_num *= len(range(year_min,year_max+1))
+            if '【申请年】' in q_template:item_num *= len(range(year_min,year_max+1))
+            if '【来源国】' in q_template:item_num *= len(from_country)
+            if '【流向国】' in q_template:item_num *= len(to_country)
+            if '【领域】' in q_template:item_num *= len(field)
+            if '【子领域】' in q_template:item_num *= len(sub_field)
+            if '【申请人】' in q_template:item_num *= len(applicant)
+            if '【发明人】' in q_template:item_num *= len(inventor)
+            if '【topN数目】' in q_template:item_num *= len(range(top_min,top_max+1))
+            num += item_num * len(a_template_list)
+            print("将产生%s个问答对，总计产生%s个。" % (item_num, num))
+            continue
+
+
             if '【优先权年】' in q_template:  base_keyword_list=add_item(base_keyword_list,'优先权年',range(year_min,year_max+1))
             if '【授权年】' in q_template:  base_keyword_list=add_item(base_keyword_list,'授权年',range(year_min,year_max+1))
             if '【申请年】' in q_template:  base_keyword_list=add_item(base_keyword_list, '申请年', range(year_min,year_max+1))
@@ -657,47 +710,32 @@ def main_deal():
             if '【申请人】' in q_template:  base_keyword_list=add_item(base_keyword_list, '申请人', applicant)
             if '【发明人】' in q_template:  base_keyword_list=add_item(base_keyword_list, '发明人', inventor)
             if '【topN数目】' in q_template:  base_keyword_list=add_item(base_keyword_list, 'topN数目', range(top_min,top_max+1))
-            # print(base_keyword_list.__len__())
-            # num+=len(base_keyword_list)*len(a_template_list)
-            # print(num)
-            # continue
+
+
+
 
             for item in base_keyword_list:
                 # 填充问句
-                question=fill_base_key(q_template, item)
+                question=fill_question(q_template, item)
                 print(question)
                 # print(question)
 
                 for a_template in a_template_list:
                     a_template=a_template['content']
 
-                    # 部分填充答句
-                    answer=fill_base_key(a_template, item)
-
-                    # 构建查询语句
-                    sql=set_sql(item)
-                    # sql="SELECT * FROM ana_des_20171121 WHERE `领域`='机器学习' limit 100"
-
-                    # 从数据库得到计算所需数据
-                    sqldata=select(sql)
-
-                    # 按申请码去重
-                    data_result=get_distinct( sqldata )
-                    # break
-
-                    # 填充答句的需计算部分
-                    answer = fill_compute_key(answer, item,data_result)
+                    answer=fill_answer(a_template,item)
 
                     result.append((question,answer))
 
-                    execute("INSERT INTO ana_des_result_20171123(id,question,answer,author) VALUES('%s','%s','%s','%s')" % (qa_type, safe_sql(question), safe_sql(answer), '张尧'))
+                    execute("INSERT INTO %s(id,question,answer,author) VALUES('%s','%s','%s','%s')" % (db_output, qa_type, safe_sql(question), safe_sql(answer), '张尧'))
                     # print(answer)
                 # break
             #break
 
-        output(result,qa_type)
+        output_txt(result,qa_type)
 
-def output(data,typename):
+
+def output_txt(data,typename):
     typename = str(typename)
     f=open('output_'+typename+'.txt',mode='w',encoding='utf-8')
     for item in data:
@@ -708,7 +746,7 @@ def output_db(data,typename):
     typename = str(typename)
     print(typename + ',' + str(len(data)))
     for item in data:
-        execute("INSERT INTO ana_des_result_20171123(id,question,answer,author) VALUES('%s','%s','%s','%s')" %(typename,safe_sql(item[0]),safe_sql(item[1]),'张尧'))
+        execute("INSERT INTO %s(id,question,answer,author) VALUES('%s','%s','%s','%s')" %(db_output,typename,safe_sql(item[0]),safe_sql(item[1]),'张尧'))
 
 def init():
     # 连接数据库
@@ -721,26 +759,55 @@ def init():
         code_dir[line.split('\t')[0]] = line.split('\t')[1].replace('\r','').replace('\n','')
 
 def update_templates():
-
-
+    # 从问句、答句模板文件中更新数据库中的模板
     qf=open("question_template.txt",mode='r',encoding='utf8')
     question_templates=list()
     for line in qf.readlines():
         question_templates.append({ 'type' : line.split('\t')[0], 'content' : line.split('\t')[1].replace('\r','').replace('\n','')})
-    execute("TRUNCATE q_template")
+    execute("TRUNCATE %s" % (db_template_q))
     for item in question_templates:
-        execute("INSERT INTO q_template(content,type) VALUES('%s','%s')" %(item['content'],item['type']))
+        execute("INSERT INTO %s(content,type) VALUES('%s','%s')" %(db_template_q,item['content'],item['type']))
 
 
     af=open("answer_template.txt",mode='r',encoding='utf8')
     answer_templates=list()
     for line in af.readlines():
         answer_templates.append({ 'type' : line.split('\t')[0], 'content' : line.split('\t')[1].replace('\r','').replace('\n','')})
-    execute("TRUNCATE a_template")
+    execute("TRUNCATE %s" %(db_template_a))
     for item in answer_templates:
-        execute("INSERT INTO a_template(content,type) VALUES('%s','%s')" %(item['content'],item['type']))
+        execute("INSERT INTO %s(content,type) VALUES('%s','%s')" %(db_template_a,item['content'],item['type']))
 
-init()
-# update_templates()
-main_deal()
-db_conn.close()
+def get_question_templates(qa_type):
+    return select("SELECT content FROM %s WHERE `type`='%s'" % (db_template_q, qa_type))
+
+def get_answer_templates(qa_type):
+    return select("SELECT content FROM %s WHERE `type`='%s'" % (db_template_a, qa_type))
+
+
+def fill_question(q_template,item):
+    question=fill_base_key(q_template, item)
+    return question
+
+def fill_answer(a_template,item):
+    # 部分填充答句
+    answer = fill_base_key(a_template, item)
+    # 构建查询语句
+    sql = set_sql(item)
+    # sql="SELECT * FROM ana_des_20171121 WHERE `领域`='机器学习' limit 100"
+
+    # 从数据库得到计算所需数据
+    sqldata = select(sql)
+
+    # 按申请码去重
+    data_result = get_distinct(sqldata)
+
+    # 填充答句的需计算部分
+    answer = fill_compute_key(answer, item, data_result)
+
+    return answer
+
+if __name__ == '__main__':
+    init()
+    # update_templates()
+    main_deal()
+    db_conn.close()
