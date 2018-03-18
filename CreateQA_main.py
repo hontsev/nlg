@@ -960,10 +960,10 @@ def merge_all_output():
         items=f.readlines()
         all_data+=items
         f.close()
-    f = open('output_all.csv', mode='w', encoding='utf-8')
+    f = open('output_all.csv', mode='r+', encoding='utf-8')
     for line in all_data:
-        if len(line)>0:
-            f.writeline(line)
+        if len(line.strip())>0:
+            f.write(line)
     f.close()
 
 def delete_old_output():
