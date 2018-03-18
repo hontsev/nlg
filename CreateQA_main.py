@@ -8,6 +8,9 @@
 import pymysql
 import json
 import datetime
+import time
+import copy
+
 
 db_config_file = "db_config"
 db_conn = object()
@@ -15,7 +18,7 @@ db_conn = object()
 #db_patent='ana_des_20171121'
 
 db_patent='ana_des_ai'
-db_output='ana_des_result_20171123'
+db_output='ana_des_result_20180301'
 db_template_q='q_template'
 db_template_a='a_template'
 
@@ -37,12 +40,18 @@ def link_database():
 
 def select(sql):
     try:
+        print("select" + sql)
+        start = time.clock()
+
         with db_conn.cursor() as cursor:
             # 执行sql语句，插入记录
             cursor.execute(sql)
         # 没有设置默认自动提交，需要主动提交，以保存所执行的语句
             res = cursor.fetchall()
             db_conn.commit()
+        end = time.clock()
+        print("read: %f s" % (end - start))
+        print("select over")
     finally:
         # db_conn.close()
         return res
@@ -215,19 +224,19 @@ def get_key11(item,data):
 def get_key12(item,data):
     num=0
     for ditem in data:
-        if len(ditem['公开（公告）日'])>0:num+=1
+        if len(str(ditem['公开（公告）日']))>0:num+=1
     return str(num)
 
 def get_key13(item,data):
     num = 0
     for ditem in data:
-        if ditem['专利有效性']=='有效' :num+=1
+        if str(ditem['专利有效性'])=='有效' :num+=1
     return str(num)
 
 def get_key14(item,data):
     num = 0
     for ditem in data:
-        country=ditem['同族国家']
+        country=str(ditem['同族国家'])
         if 'CN' in country and 'US' in country and 'JP' in country:
             num+=1
     return str(num)
@@ -236,6 +245,7 @@ def order_by_year(data):
     years = {}
     for ditem in data:
         # print(ditem)
+        if ditem['申请日'] == None: continue
         thisyear = str(ditem['申请日'])[0:4]
         if len(thisyear)<=0:
             continue
@@ -248,6 +258,7 @@ def order_by_year(data):
 def order_by_country(data):
     country = {}
     for ditem in data:
+        if ditem['申请人国别代码'] == None:continue
         tcountry = ditem['申请人国别代码'].split(', ')
         for tc in tcountry:
             if tc not in country:
@@ -260,6 +271,7 @@ def order_by_country(data):
 def order_by_othercountry(data,country):
     countries = {}
     for ditem in data:
+        if ditem['申请人国别代码'] == None: continue
         tcountry = ditem['申请人国别代码'].split(', ')
         for tc in tcountry:
             if (tc == country) or (country not in tcountry):
@@ -273,6 +285,7 @@ def order_by_othercountry(data,country):
 def order_by_person(data):
     persons = {}
     for ditem in data:
+        if ditem['申请人'] == None: continue
         tpersons = ditem['申请人'].split('; ')
         for tp in tpersons:
             if tp not in persons:
@@ -284,6 +297,7 @@ def order_by_person(data):
 def order_by_otherperson(data,person):
     persons = {}
     for ditem in data:
+        if ditem['申请人'] == None: continue
         tpersons = ditem['申请人'].split('; ')
         for tp in tpersons:
             if (tp == person) or (person not in tpersons):
@@ -297,6 +311,7 @@ def order_by_otherperson(data,person):
 def order_by_gperson(data):
     persons = {}
     for ditem in data:
+        if ditem['申请人'] == None: continue
         tpersons = ditem['申请人'].split('; ')
         for tp in tpersons:
             if tp not in persons:
@@ -308,6 +323,7 @@ def order_by_gperson(data):
 def order_by_subfield(data):
     subfields={}
     for ditem in data:
+        if ditem['子领域'] == None: continue
         subfield = str(ditem['子领域'])
         if subfield not in subfields:
             subfields[subfield] = 0
@@ -318,6 +334,7 @@ def order_by_subfield(data):
 def order_by_inventor(data):
     persons = {}
     for ditem in data:
+        if ditem['发明人'] == None: continue
         tpersons = ditem['发明人'].split('; ')
         for tp in tpersons:
             if tp not in persons:
@@ -329,6 +346,7 @@ def order_by_inventor(data):
 def order_by_otherinventor(data,inventor):
     persons = {}
     for ditem in data:
+        if ditem['发明人'] == None: continue
         tpersons = ditem['发明人'].split('; ')
         for tp in tpersons:
             if (tp == inventor) or (inventor not in tpersons):
@@ -343,6 +361,7 @@ def order_by_otherinventor(data,inventor):
 def order_by_person_type(data):
     ptypes = {}
     for ditem in data:
+        if ditem['申请人类型'] == None: continue
         ttype = ditem['申请人类型']
         if len(ttype)<=0:
             continue
@@ -443,9 +462,11 @@ def get_key21(item,data):
     lasttime=datetime.datetime.strptime('0001/1/1','%Y/%m/%d')
     lastname=''
     for ditem in data:
-        if len(ditem['申请日'])<=0:
+        if ditem['申请日'] == None: continue
+        if len(str(ditem['申请日']))<=0:
             continue
-        ttime=datetime.datetime.strptime(ditem['申请日'],'%Y/%m/%d')
+        # ttime=datetime.datetime.strptime(str(ditem['申请日']),'%Y/%m/%d')
+        ttime=ditem['申请日']
         if ttime>lasttime:
             lasttime=ttime
             lastname=ditem['标题']
@@ -455,9 +476,11 @@ def get_key22(item,data):
     earlytime=datetime.datetime.strptime('9999/1/1','%Y/%m/%d')
     earlyname=''
     for ditem in data:
-        if len(ditem['申请日'])<=0:
+        if ditem['申请日'] == None: continue
+        if len(str(ditem['申请日']))<=0:
             continue
-        ttime=datetime.datetime.strptime(ditem['申请日'],'%Y/%m/%d')
+        # ttime=datetime.datetime.strptime(str(ditem['申请日']),'%Y/%m/%d')
+        ttime = ditem['申请日']
         if ttime<earlytime:
             earlytime=ttime
             earlyname=ditem['标题']
@@ -581,6 +604,121 @@ def get_distinct(data):
         resultlist.append((item.popitem())[1])
     return resultlist
 
+def add_prepare_data(dir,indexs,key,item):
+    for i in indexs:
+        if key in dir[i]:
+            dir[i][key].append(item)
+        else:
+            dir[i][key] = [item]
+    # return dir
+
+
+
+
+
+def main_deal2():
+    print("start")
+
+    # 问答种类取值
+    # qa_type_min=1
+    # qa_type_max=44 # 44
+
+    # topN取值
+    top_n=range(1,5)
+
+    alldata=select("SELECT * FROM %s" % db_patent)
+
+    print("select end")
+
+    # prepare_data=dict()
+    for type in range(1,45):
+        q_template_list=get_question_templates(type)
+        a_template_list=get_answer_templates(type)
+        print(q_template_list)
+
+        # 为了得到这个类型对应的那些key
+        template_classic=q_template_list[0]['content']
+
+        # prepare_data[type]=dict()
+        data=dict()
+
+        for item in alldata:
+            keys=dict()
+
+            if item['优先权信息'] is None: keys['优先权年']=[item['申请日'].year]
+            else : keys['优先权年']=[item['优先权信息'].split(' ')[0][-4:]]
+
+            if item['授权公告日'] is None:keys['授权年'] = [item['申请日'].year]
+            else: keys['授权年'] = [item['授权公告日'].year]
+
+            keys['申请年']=[item['申请日'].year]
+
+            if item['申请人国别代码'] is None: keys['来源国'] = [""]
+            else: keys['来源国']=item['申请人国别代码'].split(',')
+
+            keys['流向国']=[item['公开（公告）号']]
+
+            keys['领域']=[item['领域']]
+
+            keys['子领域']=[item['子领域'].split(';')]
+
+            if item['申请人'] is None: keys['申请人'] =item['发明人'].split(';')
+            else: keys['申请人']=item['申请人'].split(';')
+
+            if item['发明人'] is None: keys['发明人'] = item['申请人'].split(';')
+            else: keys['发明人']=item['发明人'].split(';')
+
+            keys['topN数目']=[1,2,3,4,5]
+
+            this_items=[{'type':type}]
+            for keyname in keys:
+                if "【%s】" % keyname in template_classic:
+                    # print(keyname)
+                    tmp_items=list()
+                    for i1 in this_items:
+                        for i2 in keys[keyname]:
+                            # print("%s,%s" % (i1,i2))
+                            tmp=copy.deepcopy(i1)
+                            tmp[keyname]=str(i2).strip()
+                            tmp_items.append(tmp)
+                            # i1[keyname]=str(i2).strip()
+                    this_items=tmp_items
+            # print(this_items)
+            # return
+
+            for sub_item in this_items:
+                key = ""
+                for part in sub_item:
+                    key+="%s:%s|" % (part,sub_item[part])
+                if key in data:
+                    data[key].append(item)
+                else:
+                    data[key]=[item]
+
+        result=list()
+        for key in data:
+            item={}
+            tmp1=key.split('|')
+            for part in tmp1:
+                if(len(part)<=0): continue
+                k,v=part.split(':',1)
+                item[k]=v
+
+            for q_template in q_template_list:
+                q_template=q_template['content']
+                q = fill_question(q_template,item)
+                # print(q)
+                for a_template in a_template_list:
+                    a_template=a_template['content']
+                    a = fill_answer_with_data(a_template,item,data[key])
+                    # print(a)
+                    result.append((q, a))
+                    # execute("INSERT INTO %s(id,question,answer,author) VALUES('%s','%s','%s','%s')" % (
+                    # db_output, type, safe_sql(q), safe_sql(a), '张尧'))
+        print("%s finish" % type)
+        output_txt(result,type)
+
+
 def main_deal():
 
     print("开始获取可能的取值…")
@@ -669,7 +807,8 @@ def main_deal():
 
     num=0
     for qa_type in range(qa_type_min, qa_type_max+1):
-
+        if qa_type == 35 or qa_type == 33 or qa_type == 32 or qa_type == 31:
+            continue
         result = list()
         q_template_list= get_question_templates(qa_type)
         a_template_list = get_answer_templates(qa_type)
@@ -697,7 +836,7 @@ def main_deal():
             if '【topN数目】' in q_template:item_num *= len(range(top_min,top_max+1))
             num += item_num * len(a_template_list)
             print("将产生%s个问答对，总计产生%s个。" % (item_num, num))
-            continue
+            # continue
 
 
             if '【优先权年】' in q_template:  base_keyword_list=add_item(base_keyword_list,'优先权年',range(year_min,year_max+1))
@@ -788,6 +927,12 @@ def fill_question(q_template,item):
     question=fill_base_key(q_template, item)
     return question
 
+def fill_answer_with_data(a_template,item,data):
+    data_result = get_distinct(data)
+    answer = fill_base_key(a_template, item)
+    answer=fill_compute_key(answer, item,data_result)
+    return answer
+
 def fill_answer(a_template,item):
     # 部分填充答句
     answer = fill_base_key(a_template, item)
@@ -806,8 +951,30 @@ def fill_answer(a_template,item):
 
     return answer
 
+
+def merge_all_output():
+    all_data=list()
+    for i in range(1,45):
+        typename = str(i)
+        f = open('output_' + typename + '.txt', mode='r', encoding='utf-8')
+        items=f.readlines()
+        all_data+=items
+        f.close()
+    f = open('output_all.csv', mode='w', encoding='utf-8')
+    for line in all_data:
+        if len(line)>0:
+            f.writeline(line)
+    f.close()
+
+def delete_old_output():
+    print("删除旧生成数据")
+    execute("DELETE FROM %s WHERE author='%s'" % (db_output,'张尧'))
+
+
 if __name__ == '__main__':
     init()
-    # update_templates()
-    main_deal()
+    # delete_old_output()
+    ## update_templates()
+    # main_deal2()
+    merge_all_output()
     db_conn.close()
