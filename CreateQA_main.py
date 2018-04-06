@@ -10,6 +10,19 @@ import json
 import datetime
 import time
 import copy
+import os
+
+dict_path='dict/'
+key_cmp_file='qtype_to_akeytype.txt'
+country_list='country_list.txt'
+person_list='person_list.txt'
+field_list='field_list.txt'
+template_q_list='template_q_list.txt'
+template_a_list='template_a_list.txt'
+
+data_path='data/'
+qa_pair_list='qa_pair_list.txt'
+ka_pair_list='ka_pair_list.txt'
 
 
 db_config_file = "db_config"
@@ -23,6 +36,7 @@ db_template_q='q_template'
 db_template_a='a_template'
 
 code_dir = dict()
+key_cmp_dir = dict()
 
 # 连接数据库
 def link_database():
@@ -259,8 +273,9 @@ def order_by_country(data):
     country = {}
     for ditem in data:
         if ditem['申请人国别代码'] == None:continue
-        tcountry = ditem['申请人国别代码'].split(', ')
+        tcountry = ditem['申请人国别代码'].split(',')
         for tc in tcountry:
+            tc = tc.strip()
             if tc not in country:
                 country[tc] = 0
             country[tc] += 1
@@ -272,8 +287,9 @@ def order_by_othercountry(data,country):
     countries = {}
     for ditem in data:
         if ditem['申请人国别代码'] == None: continue
-        tcountry = ditem['申请人国别代码'].split(', ')
+        tcountry = ditem['申请人国别代码'].split(',')
         for tc in tcountry:
+            tc = tc.strip()
             if (tc == country) or (country not in tcountry):
                 continue
             if tc not in countries:
@@ -286,8 +302,9 @@ def order_by_person(data):
     persons = {}
     for ditem in data:
         if ditem['申请人'] == None: continue
-        tpersons = ditem['申请人'].split('; ')
+        tpersons = ditem['申请人'].split(';')
         for tp in tpersons:
+            tp = tp.strip()
             if tp not in persons:
                 persons[tp] = 0
             persons[tp] += 1
@@ -298,8 +315,9 @@ def order_by_otherperson(data,person):
     persons = {}
     for ditem in data:
         if ditem['申请人'] == None: continue
-        tpersons = ditem['申请人'].split('; ')
+        tpersons = ditem['申请人'].split(';')
         for tp in tpersons:
+            tp = tp.strip()
             if (tp == person) or (person not in tpersons):
                 continue
             if tp not in persons:
@@ -312,8 +330,9 @@ def order_by_gperson(data):
     persons = {}
     for ditem in data:
         if ditem['申请人'] == None: continue
-        tpersons = ditem['申请人'].split('; ')
+        tpersons = ditem['申请人'].split(';')
         for tp in tpersons:
+            tp = tp.strip()
             if tp not in persons:
                 persons[tp] = 0
             persons[tp] += int(ditem['家族被引证次数'])
@@ -324,10 +343,12 @@ def order_by_subfield(data):
     subfields={}
     for ditem in data:
         if ditem['子领域'] == None: continue
-        subfield = str(ditem['子领域'])
-        if subfield not in subfields:
-            subfields[subfield] = 0
-        subfields[subfield] += 1
+        tsubfields = ditem['子领域'].split(';')
+        for sf in tsubfields:
+            sf = sf.strip()
+            if sf not in subfields:
+                subfields[sf]=0
+            subfields[sf]+=1
     result=sorted(subfields.items(),key=lambda item:item[1],reverse=True)
     return result
 
@@ -337,6 +358,7 @@ def order_by_inventor(data):
         if ditem['发明人'] == None: continue
         tpersons = ditem['发明人'].split('; ')
         for tp in tpersons:
+            tp = tp.strip()
             if tp not in persons:
                 persons[tp] = 0
             persons[tp] += 1
@@ -347,8 +369,9 @@ def order_by_otherinventor(data,inventor):
     persons = {}
     for ditem in data:
         if ditem['发明人'] == None: continue
-        tpersons = ditem['发明人'].split('; ')
+        tpersons = ditem['发明人'].split(';')
         for tp in tpersons:
+            tp = tp.strip()
             if (tp == inventor) or (inventor not in tpersons):
                 continue
             if tp not in persons:
@@ -574,6 +597,12 @@ def fill_compute_key(template, item, data):
     # print(order_by_country(data))
     return result
 
+def get_compute_key_single(item,data,type):
+    return globals().get("get_key%s"% key_cmp_dir[str(type)])(item,data)
+
+
+
+
 # 按专利的去重规则，过滤重复的专利项
 def get_distinct(data):
     result=dict()
@@ -696,6 +725,7 @@ def main_deal2():
                     data[key]=[item]
 
         result=list()
+        result_index=list()
         for key in data:
             item={}
             tmp1=key.split('|')
@@ -707,16 +737,32 @@ def main_deal2():
             for q_template in q_template_list:
                 q_template=q_template['content']
                 q = fill_question(q_template,item)
+
                 # print(q)
                 for a_template in a_template_list:
                     a_template=a_template['content']
                     a = fill_answer_with_data(a_template,item,data[key])
+                    answer_single=get_compute_key_single(item,data[key],type)
+                    if '优先权年' not in item: item['优先权年']=''
+                    if '授权年' not in item: item['授权年'] = ''
+                    if '申请年' not in item: item['申请年'] = ''
+                    if '来源国' not in item: item['来源国'] = ''
+                    if '流向国' not in item: item['流向国'] = ''
+                    if '领域' not in item: item['领域'] = ''
+                    if '子领域' not in item: item['子领域'] = ''
+                    if '申请人' not in item: item['申请人'] = ''
+                    if '发明人' not in item: item['发明人'] = ''
+                    if 'topN数目' not in item: item['topN数目'] = ''
+                    result_index.append((type,item['优先权年'],item['授权年'],item['申请年'],item['来源国'],item['流向国'],item['领域'],item['子领域'],item['申请人'],item['发明人'],item['topN数目'],answer_single))
                     # print(a)
-                    result.append((q, a))
+
+                    # result.append((q, a))
+
                     # execute("INSERT INTO %s(id,question,answer,author) VALUES('%s','%s','%s','%s')" % (
                     # db_output, type, safe_sql(q), safe_sql(a), '张尧'))
         print("%s finish" % type)
-        output_txt(result,type)
+        output_txt2(result_index,type)
+        # output_txt(result,type)
 
 
 def main_deal():
@@ -873,12 +919,24 @@ def main_deal():
 
         output_txt(result,qa_type)
 
+# 按照如下格式存入txt：类型-优先权年-授权年-申请年-来源国-流向国-领域-子领域-申请人-发明人-topN数目-答案
+def output_txt2(data,typename):
+    typename = str(typename)
+    f = open(data_path+'ka_pair_%s_index.txt'% typename, mode='w', encoding='utf-8')
+    for item in data:
+        line=''
+        for lineitem in item:
+            line+='%s\t' % lineitem
+        line+='\r'
+        f.write(line)
+    f.close()
 
+# 按照问句-答句的形式存入文本文件
 def output_txt(data,typename):
     typename = str(typename)
-    f=open('output_'+typename+'.txt',mode='w',encoding='utf-8')
+    f=open(dict_path+'qa_pair_%s.txt'%typename,mode='w',encoding='utf-8')
     for item in data:
-        f.write(item[0]+"\t"+item[1]+"\r\n")
+        f.write(item[0]+"\t"+item[1]+"\r")
     f.close()
 
 def output_db(data,typename):
@@ -891,15 +949,26 @@ def init():
     # 连接数据库
     link_database()
 
+    # dict
+    if not os.path.exists(dict_path):os.makedirs(dict_path)
+    if not os.path.exists(data_path):os.makedirs(data_path)
+
     # 读取国别编码的索引字典
-    f = open('country_code.txt', mode='r', encoding='utf8')
+    f = open(dict_path+'country_code.txt', mode='r', encoding='utf8')
     global code_dir
     for line in f.readlines():
         code_dir[line.split('\t')[0]] = line.split('\t')[1].replace('\r','').replace('\n','')
 
+    # 读取问题-答案关键词id的对应字典
+    f = open(dict_path+key_cmp_file,mode='r',encoding='utf-8')
+    global key_cmp_dir
+    for line in f.readlines():
+        key_cmp_dir[line.split('\t')[0]]=line.split('\t')[1].replace('\r','').replace('\n','')
+
+
 def update_templates():
     # 从问句、答句模板文件中更新数据库中的模板
-    qf=open("question_template.txt",mode='r',encoding='utf8')
+    qf=open(dict_path+template_q_list,mode='r',encoding='utf8')
     question_templates=list()
     for line in qf.readlines():
         question_templates.append({ 'type' : line.split('\t')[0], 'content' : line.split('\t')[1].replace('\r','').replace('\n','')})
@@ -908,7 +977,7 @@ def update_templates():
         execute("INSERT INTO %s(content,type) VALUES('%s','%s')" %(db_template_q,item['content'],item['type']))
 
 
-    af=open("answer_template.txt",mode='r',encoding='utf8')
+    af=open(dict_path+template_a_list,mode='r',encoding='utf8')
     answer_templates=list()
     for line in af.readlines():
         answer_templates.append({ 'type' : line.split('\t')[0], 'content' : line.split('\t')[1].replace('\r','').replace('\n','')})
@@ -951,18 +1020,35 @@ def fill_answer(a_template,item):
 
     return answer
 
-
+# 将生成的数据保存成同一个txt，便于导入数据库
 def merge_all_output():
+    # 问答句
     all_data=list()
+    all_data.append("question\tanswer\r")
     for i in range(1,45):
         typename = str(i)
         f = open('output_' + typename + '.txt', mode='r', encoding='utf-8')
         items=f.readlines()
         all_data+=items
         f.close()
-    f = open('output_all.csv', mode='r+', encoding='utf-8')
+    f = open(data_path+qa_pair_list, mode='w', encoding='utf-8')
     for line in all_data:
         if len(line.strip())>0:
+            f.write(line)
+    f.close()
+
+    # 关键词-答案对
+    all_data=list()
+    all_data.append("type\ty1\ty2\ty3\tc1\tc2\ta1\ta2\tp1\tp2\ttopN\tres\t\r")
+    for i in range(1,45):
+        typename=str(i)
+        f = open(data_path+'ka_pair_%s.txt' % i, mode='r', encoding='utf-8')
+        items = f.readlines()
+        all_data += items
+        f.close()
+    f = open(data_path+ka_pair_list, mode='w', encoding='utf-8')
+    for line in all_data:
+        if len(line.strip()) > 0:
             f.write(line)
     f.close()
 
@@ -970,11 +1056,97 @@ def delete_old_output():
     print("删除旧生成数据")
     execute("DELETE FROM %s WHERE author='%s'" % (db_output,'张尧'))
 
+# 导出国家列表、领域列表、人名组织名列表
+def save_key_list():
+    # 获取来源国字段的可能的取值
+    from_country_tmp = select("SELECT distinct 申请人国别代码 FROM %s" % db_patent)
+    from_country = list()
+    for item in from_country_tmp:
+        # print(item['申请人国别代码'])
+        if item['申请人国别代码'] == None: continue
+        for country in item['申请人国别代码'].split(','):
+            if len(country.strip()) > 0:
+                from_country.append(country.strip())
+    from_country = list(set(from_country))  # [0:5]
+
+    # 获取流向国的可能取值，这里是取得其英文字母编号
+    to_country_tmp = select("SELECT distinct SUBSTRING(公开（公告）号,1,2) as 流向国国别代码 FROM %s" % db_patent)
+    to_country = list()
+    # 转化为中文国名
+    for item in to_country_tmp: to_country.append(code_dir[item['流向国国别代码']])
+    to_country = list(set(to_country))  # [0:5]
+
+    countries=list()
+    for item in from_country:
+        if item not in countries:
+            countries.append(item)
+    for item in to_country:
+        if item not in countries:
+            countries.append(item)
+    f=open(dict_path+country_list,mode='w',encoding='utf-8')
+    for item in countries:
+        f.write(item+"\r")
+    # f.writelines(countries)
+    f.close()
+
+    # 领域的可能取值
+    field = dict()
+    field_tmp = select("SELECT distinct 领域,子领域 FROM %s" % db_patent)
+    for item in field_tmp:
+        fname=item["领域"].strip()
+        for sname in item['子领域'].split(';'):
+            sname=sname.strip()
+            if len(sname) > 0:
+                keyname=fname+"\t"+sname
+                field[keyname]=1
+    f=open(dict_path+field_list,mode='w',encoding='utf-8')
+    for item in field.keys():
+        f.write(item+"\r")
+    f.close()
+
+    # 申请人的可能取值
+    applicant_tmp = select("SELECT distinct 申请人 FROM %s" % db_patent)
+    applicant = list()
+    for item in applicant_tmp:
+        if item['申请人'] == None: continue
+        for name in item['申请人'].split(';'):
+            if len(name.strip()) > 0:
+                applicant.append(name.strip())
+    applicant = list(set(applicant))  # [0:100]
+
+    # 发明人的可能取值
+    inventor_tmp = select("SELECT distinct 发明人 FROM %s" % db_patent)
+    inventor = list()
+    for item in inventor_tmp:
+        if item['发明人'] == None: continue
+        for name in item['发明人'].split(';'):
+            if len(name.strip()) > 0:
+                inventor.append(name.strip())
+    inventor = list(set(inventor))  # [0:100]
+
+    person=list()
+    for item in applicant:
+        if item not in countries:
+            person.append(item)
+    for item in inventor:
+        if item not in countries:
+            person.append(item)
+    f=open(dict_path+person_list,mode='w',encoding='utf-8')
+    for item in person:
+        f.write(item+"\r")
+    # f.writelines(countries)
+    f.close()
+
+
+
+
 
 if __name__ == '__main__':
     init()
     # delete_old_output()
-    ## update_templates()
+    # update_templates()
     # main_deal2()
-    merge_all_output()
+    # merge_all_output()
+    save_key_list()
+
     db_conn.close()
