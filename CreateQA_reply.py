@@ -1,3 +1,5 @@
+import re
+
 import CreateQA_main as QA
 import sys
 
@@ -35,8 +37,21 @@ def init():
     for item in f.readlines():person.append(item.strip())
 
 
+def get_year(text):
+    pattern = re.compile(r'\d{4}年')
+    pos = -1
+    res=''
+    while True:
+        match = pattern.search(text, pos)
+        if not match:
+            break
+        res=text[s,e-1]
+        s = match.start()
+        e = match.end()
+        pos = e
+    return [pos,res]
 
-# 将输入的文本进行分析，得到关键词和问题类型
+    # 将输入的文本进行分析，得到关键词和问题类型
 def get_keywords(question):
     keywords={}
     cname=""

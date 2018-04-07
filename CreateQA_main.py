@@ -12,6 +12,8 @@ import time
 import copy
 import os
 
+import re
+
 dict_path='dict/'
 key_cmp_file='qtype_to_akeytype.txt'
 country_list='country_list.txt'
@@ -19,6 +21,7 @@ person_list='person_list.txt'
 field_list='field_list.txt'
 template_q_list='template_q_list.txt'
 template_a_list='template_a_list.txt'
+country_code="country_code.txt"
 
 data_path='data/'
 qa_pair_list='qa_pair_list.txt'
@@ -685,7 +688,7 @@ def main_deal2():
             if item['申请人国别代码'] is None: keys['来源国'] = [""]
             else: keys['来源国']=item['申请人国别代码'].split(',')
 
-            keys['流向国']=[item['公开（公告）号']]
+            keys['流向国']=[ code_dir[item['公开（公告）号'][0:2]]]
 
             keys['领域']=[item['领域']]
 
@@ -756,13 +759,13 @@ def main_deal2():
                     result_index.append((type,item['优先权年'],item['授权年'],item['申请年'],item['来源国'],item['流向国'],item['领域'],item['子领域'],item['申请人'],item['发明人'],item['topN数目'],answer_single))
                     # print(a)
 
-                    # result.append((q, a))
+                    result.append((q, a))
 
                     # execute("INSERT INTO %s(id,question,answer,author) VALUES('%s','%s','%s','%s')" % (
                     # db_output, type, safe_sql(q), safe_sql(a), '张尧'))
         print("%s finish" % type)
         output_txt2(result_index,type)
-        # output_txt(result,type)
+        output_txt(result,type)
 
 
 def main_deal():
@@ -922,7 +925,7 @@ def main_deal():
 # 按照如下格式存入txt：类型-优先权年-授权年-申请年-来源国-流向国-领域-子领域-申请人-发明人-topN数目-答案
 def output_txt2(data,typename):
     typename = str(typename)
-    f = open(data_path+'ka_pair_%s_index.txt'% typename, mode='w', encoding='utf-8')
+    f = open(data_path+'ka_pair_%s.txt'% typename, mode='w', encoding='utf-8')
     for item in data:
         line=''
         for lineitem in item:
@@ -934,7 +937,7 @@ def output_txt2(data,typename):
 # 按照问句-答句的形式存入文本文件
 def output_txt(data,typename):
     typename = str(typename)
-    f=open(dict_path+'qa_pair_%s.txt'%typename,mode='w',encoding='utf-8')
+    f=open(data_path+'qa_pair_%s.txt'%typename,mode='w',encoding='utf-8')
     for item in data:
         f.write(item[0]+"\t"+item[1]+"\r")
     f.close()
@@ -954,7 +957,7 @@ def init():
     if not os.path.exists(data_path):os.makedirs(data_path)
 
     # 读取国别编码的索引字典
-    f = open(dict_path+'country_code.txt', mode='r', encoding='utf8')
+    f = open(dict_path+country_code, mode='r', encoding='utf8')
     global code_dir
     for line in f.readlines():
         code_dir[line.split('\t')[0]] = line.split('\t')[1].replace('\r','').replace('\n','')
@@ -1026,8 +1029,7 @@ def merge_all_output():
     all_data=list()
     all_data.append("question\tanswer\r")
     for i in range(1,45):
-        typename = str(i)
-        f = open('output_' + typename + '.txt', mode='r', encoding='utf-8')
+        f = open(data_path+'qa_pair_%s.txt'% i , mode='r', encoding='utf-8')
         items=f.readlines()
         all_data+=items
         f.close()
@@ -1138,6 +1140,64 @@ def save_key_list():
     f.close()
 
 
+# 得到ner格式的语料文件
+def output_ner_corpus():
+    f=open(data_path+ka_pair_list,encoding="utf-8",mode="r")
+    lines=f.readlines()
+    qt=dict()
+    at=dict()
+    reslist = list()
+    for i in range(1,45):
+        qt[str(i)]=get_question_templates(i)
+        at[str(i)]=get_answer_templates(i)
+    df=True
+    for line in lines:
+        # print(line.strip().split("\t"))
+        if df or len(line.strip().split("\t"))!=12:
+            df=False
+            continue
+        #print(line,len(line.strip().split("\t")))
+        for type,y1,y2,y3,c1,c2,a1,a2,p1,p2,topN,res in [line.strip().split("\t")]:
+            ql=qt[type]
+            al=at[type]
+            for q in ql:
+                for a in al:
+                    q=q["content"]
+                    a=a["content"]
+                    if len(y1) > 0: q = q.replace('【申请年】', "{{time:%s}}"%y1).replace('【授权年】', "{{time:%s}}"%y1).replace('【优先权年】', "{{time:%s}}"%y1); a = a.replace('【申请年】', "{{time:%s}}"%y1).replace('【授权年】', "{{time:%s}}"%y1).replace('【优先权年】', "{{time:%s}}"%y1)
+                    if len(y2) > 0: q = q.replace('【申请年】', "{{time:%s}}"%y2).replace('【授权年】', "{{time:%s}}"%y2).replace('【优先权年】', "{{time:%s}}"%y2);a = a.replace('【申请年】', "{{time:%s}}"%y2).replace('【授权年】', "{{time:%s}}"%y2).replace('【优先权年】', "{{time:%s}}"%y2)
+                    if len(y3) > 0: q = q.replace('【申请年】', "{{time:%s}}"%y3).replace('【授权年】', "{{time:%s}}"%y3).replace('【优先权年】', "{{time:%s}}"%y3);a = a.replace('【申请年】', "{{time:%s}}"%y3).replace('【授权年】', "{{time:%s}}"%y3).replace('【优先权年】', "{{time:%s}}"%y3)
+                    if len(c1) > 0: q = q.replace('【来源国】', "{{location:%s}}" % c1);a = a.replace('【来源国】',"{{location:%s}}" % c1)
+                    if len(c2) > 0: q = q.replace('【流向国】', "{{location:%s}}" % c2);a = a.replace('【流向国】',"{{location:%s}}" % c2)
+                    if len(a1) > 0: q = q.replace('【领域】', "{{product_name:%s}}"%a1);a = a.replace('【领域】', "{{product_name:%s}}"%a1)
+                    if len(a2) > 0: q = q.replace('【子领域】', "{{product_name:%s}}"%a2);a = a.replace('【子领域】', "{{product_name:%s}}"%a2)
+                    if len(p1) > 0: q = q.replace('【申请人】', "{{person_name:%s}}"%p1);a = a.replace('【申请人】', "{{person_name:%s}}"%p1)
+                    if len(p2) > 0: q = q.replace('【发明人】', "{{person_name:%s}}"%p2);a = a.replace('【发明人】', "{{person_name:%s}}"%p2)
+                    if len(topN) > 0: q = q.replace('【topN数目】', topN);a = a.replace('【topN数目】', topN)
+                    a = a.replace('【专利申请量】', res)
+                    a = a.replace('【专利授权量】', res)
+                    a = a.replace('【有效专利量】', res)
+                    a = a.replace('【三方专利量】', res)
+                    a = a.replace('【专利申请量最多的年份】', "{{time:%s}}"%res)
+                    a = a.replace('【专利申请量增长最快的年份】', "{{time:%s}}"%res)
+                    a = a.replace('【专利申请量topN的来源国】', "{{location:%s}}"%res)
+                    a = a.replace('【专利申请量topN的申请人】', "{{person_name:%s}}"%res)
+                    a = a.replace('【专利族高被引topN的申请人】', "{{person_name:%s}}"%res)
+                    a = a.replace('【专利族高被引topN的专利名称】', res)
+                    a = a.replace('【最新申请的专利名称】', res)
+                    a = a.replace('【最早申请的专利名称】', res)
+                    a = a.replace('【专利申请趋势】', res)
+                    a = a.replace('【主要研究方向】', "{{product_name:%s}}"%res)
+                    a = a.replace('【与申请人合作最多的申请人】', "{{person_name:%s}}"%res)
+                    a = a.replace('【与发明人合作最多的发明人】', "{{person_name:%s}}"%res)
+                    a = a.replace('【最多申请人类型】', res)
+                    a = a.replace('【与来源国合作最多的来源国】', "{{location:%s}}"%res)
+                    # print(q)
+                    # print(a)
+                    reslist.append("%s\r%s\r" % (q,a))
+
+    f2=open(data_path+"corpus.txt",mode="w",encoding="utf-8")
+    f2.writelines(reslist)
 
 
 
@@ -1147,6 +1207,6 @@ if __name__ == '__main__':
     # update_templates()
     # main_deal2()
     # merge_all_output()
-    save_key_list()
-
+    # save_key_list()
+    # output_ner_corpus()
     db_conn.close()
