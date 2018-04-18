@@ -132,12 +132,17 @@ def set_sql(item):
             sql += " AND "
         sql += "`申请人国别代码`='%s'" % item['来源国']
     if '流向国' in item:
+        ccode=''
+        for code in code_dir:
+            if code_dir[code] == item['流向国']:
+                ccode=code
+                break
         if is_first_condition:
             is_first_condition = False
             sql += " WHERE "
         else:
             sql += " AND "
-        sql += "SUBSTRING(`公开（公告）号`,1,2)='%s'" % item['流向国']
+        sql += "SUBSTRING(`公开（公告）号`,1,2)='%s'" % ccode
     if '领域' in item:
         if is_first_condition:
             is_first_condition = False
@@ -1054,6 +1059,7 @@ def merge_all_output():
             f.write(line)
     f.close()
 
+# 删除原有的数据库模板句数据
 def delete_old_output():
     print("删除旧生成数据")
     execute("DELETE FROM %s WHERE author='%s'" % (db_output,'张尧'))
