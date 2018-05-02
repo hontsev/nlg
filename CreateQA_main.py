@@ -643,19 +643,28 @@ class QAGenerator:
 
         return result
 
+
+    def __get_default_answer(self,key):
+        key=key.strip()
+        if key[-2:-1]=='量':
+            return '0'
+        else:
+            return '尚不清楚'
+
     def __fill_compute_key(self,template, item, data):
         result = template
         filled=False
         for key in self.template_key:
-            if key in result and int(self.template_key[key])>10:
+            #if key in result and int(self.template_key[key])>10:
                 try:
                     res=getattr(self,"get_key%s" % self.template_key[key])(item, data)
                 except:
                     res=''
-                result = result.replace(key, res)
-                if len(res)<=0 or res.strip()=='0':
+                if len(res.strip())<=0 or res.strip()=='0':
+                    result = result.replace(key, self.__get_default_answer(key))
                     filled=False
                 else :
+                    result = result.replace(key, res)
                     filled=True
         # result = result.replace('【专利申请量】', self.__get_key11(item,data))
         # result = result.replace('【专利授权量】', self.__get_key12(item, data))
@@ -1267,10 +1276,10 @@ class QAGenerator:
     def __reply2(self,keywords):
         answer_templates = self.__get_answer_templates(keywords['type'])
 
-        sql="select result from %s where " % self.db_res_index
+        sql="select result from %s where q_type=%s and " % (self.db_res_index,keywords['type'])
         if '优先权年' in keywords: sql = sql + "yxq_year='%s' and " % keywords['优先权年']
-        if '申请年' in keywords: sql = sql + "sh_year='%s' and " % keywords['申请年']
-        if '授权年' in keywords: sql = sql + "sq_year='%s' and " % keywords['授权年']
+        if '授权年' in keywords: sql = sql + "sh_year='%s' and " % keywords['授权年']
+        if '申请年' in keywords: sql = sql + "sq_year='%s' and " % keywords['申请年']
         if '来源国' in keywords: sql = sql + "from_country='%s' and " % keywords['来源国']
         if '流向国' in keywords: sql = sql + "to_country='%s' and " % keywords['流向国']
         if '领域' in keywords: sql = sql + "from_area='%s' and " % keywords['领域']
@@ -1281,17 +1290,28 @@ class QAGenerator:
         sql=sql[0:len(sql)-4]
 
         a_result=self.__select(sql)
-        if len(a_result)<=0:
+        print(a_result)
+        if len(a_result)>0:
+            a_result = a_result[0]['result']
+            if a_result==None or len(a_result.strip())<=0:
+                a_result=''
+                f=False
+            else:
+                f=True
+        else:
             a_result=''
             f=False
-        else:
-            a_result=a_result[0]['result']
-            f=True
+
         index = random.randint(0, len(answer_templates) - 1)
         a=self.__fill_base_key(answer_templates[index]['content'], keywords)
+
         for key in self.template_key:
             if key in a:
-                a=a.replace(key,a_result)
+                key=key.strip()
+                if len(a_result.strip()) <= 0 or a_result.strip() == '0':
+                    a = a.replace(key, self.__get_default_answer(key))
+                else:
+                    a = a.replace(key, a_result)
                 break
         return f,a
 
@@ -1314,13 +1334,13 @@ class QAGenerator:
                 res='20'+res
                 break
             elif '今年' in text[pos:]:
-                res = str(datetime.now().year)
+                res = str(datetime.datetime.now().year)
                 break
             elif '去年' in text[pos:]:
-                res = str(datetime.now().year - 1)
+                res = str(datetime.datetime.now().year - 1)
                 break
             elif '前年' in text[pos:]:
-                res = str(datetime.now().year - 2)
+                res = str(datetime.datetime.now().year - 2)
                 break
         return res
 
@@ -1428,6 +1448,7 @@ class QAGenerator:
         # 判断人名
         for p in self.person:
             if p in question:
+                print(p,question)
                 pname.append(p)
 
         # 判断年份
@@ -1447,10 +1468,10 @@ class QAGenerator:
         if len(pname) >= 1:tmpk['person']=pname
         if len(year) >= 1:tmpk['year']=year
         if len(topn) >= 1:tmpk['topn']=topn
-
+        print(tmpk)
         types = self.__get_types(question,tmpk)
 
-        print(cname,fname,sfname,pname,year,topn,types)
+        # print(cname,fname,sfname,pname,year,topn,types)
 
         tmpk['type']=types
         # print(tmpk)
@@ -1460,19 +1481,39 @@ class QAGenerator:
             if len(t) >= 1: keywords['type']=t
             # print(key_in_types[t])
             type_key_code= self.key_in_types[t][2]
-            if len(year) >= 1 and type_key_code[0]=='1': keywords['优先权年'] = year[0]
-            if len(year) >= 1 and type_key_code[1]=='1':  keywords['授权年'] = year[0]
-            if len(year) >= 1 and type_key_code[2]=='1': keywords['申请年'] = year[0]
-            if len(cname) >= 1 and type_key_code[3]=='1':  keywords['来源国'] = cname[0]
-            if len(cname) >= 1 and type_key_code[4]=='1': keywords['流向国'] = cname[0]
-            if len(fname) >= 1 and type_key_code[5]=='1': keywords['领域'] = fname[0]
-            if len(sfname) >= 1 and type_key_code[6]=='1': keywords['子领域'] = sfname[0]
-            if len(pname) >= 1 and type_key_code[7]=='1': keywords['申请人'] = pname[0]
-            if len(pname) >= 1 and type_key_code[8] == '1': keywords['发明人'] = pname[0]
-            if len(pname) >= 2 and type_key_code[8]=='1': keywords['发明人'] = pname[1]
-            if len(topn) >= 1 and type_key_code[9]=='1': keywords['topN数目'] = topn[0]
+            if type_key_code[0]=='1':
+                if len(year) >= 1 : keywords['优先权年'] = year[0]
+                else: continue
+            if type_key_code[1]=='1':
+                if len(year) >= 1 : keywords['授权年'] = year[0]
+                else: continue
+            if type_key_code[2]=='1':
+                if len(year) >= 1 : keywords['申请年'] = year[0]
+                else: continue
+            if type_key_code[3]=='1':
+                if len(cname) >= 1 : keywords['来源国'] = cname[0]
+                else: continue
+            if type_key_code[4]=='1':
+                if len(cname) >= 1 : keywords['流向国'] = cname[0]
+                else: continue
+            if type_key_code[5]=='1':
+                if len(fname) >= 1 : keywords['领域'] = fname[0]
+                else: continue
+            if type_key_code[6]=='1':
+                if len(sfname) >= 1 : keywords['子领域'] = sfname[0]
+                else: continue
+            if type_key_code[7]=='1':
+                if len(pname) >= 1 : keywords['申请人'] = pname[0]
+                else: continue
+            if type_key_code[8]=='1':
+                if len(pname) >= 2 : keywords['发明人'] = pname[1]
+                elif len(pname) >= 1 : keywords['发明人'] = pname[0]
+                else: continue
+            if type_key_code[9]=='1':
+                if len(topn) >= 1 : keywords['topN数目'] = topn[0]
+                else: continue
             keywords_list.append(keywords)
-
+        print(keywords_list)
         return keywords_list
 
     def generate_qa_pairs(self):
@@ -1494,7 +1535,7 @@ class QAGenerator:
             if f == False: f_answers.append(answer)
             else: r_answers.append(answer)
         if len(r_answers)>0 :return '，'.join(r_answers)
-        elif len(f_answers)>0: return f_answers[0]
+        elif len(f_answers)>0: return f_answers[-1]
         else: return ''
 
 if __name__ == '__main__':
