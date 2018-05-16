@@ -19,7 +19,7 @@ import re
 class QAGenerator:
 
     def __init__(self):
-        self.BASE_DIR = os.path.dirname(__file__)+'\\'
+        self.BASE_DIR = os.path.dirname(__file__)+'/'
         self.dict_path = self.BASE_DIR+'dict/'
         self.key_cmp_file = 'qtype_to_akeytype.txt'
         self.country_list = 'key_country.txt'
